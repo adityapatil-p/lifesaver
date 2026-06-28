@@ -10,11 +10,11 @@ import Task from '../models/Task.js'
 // @access  Private
 export const getSchedule = async (req, res) => {
   try {
-     console.log("Schedule Controller Started");
+    console.log('Schedule Controller Started')
     const tasks = await Task.find({ userId: req.user._id })
-    console.log("Tasks:", tasks.length);
+    console.log('Tasks:', tasks.length)
     const scheduleData = await generateScheduleAI(tasks)
-    console.log("Schedule Generated");
+    console.log('Schedule Generated')
     res.json({ success: true, ...scheduleData })
   } catch (error) {
     console.error('AI Schedule Error:', error)

@@ -14,21 +14,19 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const model = genAI.getGenerativeModel({
   model: "gemini-2.5-flash",
-  generationConfig: {
-    responseMimeType: "application/json",
-  },
 });
 
-const prompt = `
-Return ONLY JSON.
+console.time("Gemini");
 
-{
-  "message":"hello"
+try {
+  const result = await model.generateContent(
+    "Write one sentence about AI."
+  );
+
+  console.timeEnd("Gemini");
+
+  console.log(result.response.text());
+
+} catch (e) {
+  console.error(e);
 }
-`;
-
-console.log("Calling Gemini...");
-
-const result = await model.generateContent(prompt);
-
-console.log(await result.response.text());

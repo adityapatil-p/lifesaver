@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Settings as SettingsIcon,
   User,
@@ -14,7 +15,7 @@ import { GlassCard } from '../components/ui/GlassCard'
 import { Button } from '../components/ui/Button'
 import { ThemeToggle } from '../components/ui/ThemeToggle'
 import { useTheme } from '../context/ThemeContext'
-import { user } from '../data/mockData'
+import { useAuth } from '../context/AuthContext'
 import { cn } from '../utils/cn'
 
 const settingsSections = [
@@ -46,6 +47,8 @@ function Toggle({ enabled, onChange }) {
 
 export default function Settings() {
   const { isDark } = useTheme()
+  const navigate = useNavigate()
+  const { user, updateProfile, logout: authLogout } = useAuth()
   const [activeSection, setActiveSection] = useState('profile')
   const [notifications, setNotifications] = useState({
     email: true,
@@ -58,6 +61,40 @@ export default function Settings() {
     smartPrioritize: true,
     riskAlerts: true,
   })
+  const [formData, setFormData] = useState({ name: '', email: '', role: '' })
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || '',
+        email: user.email || '',
+        role: user.role || '',
+      })
+    }
+  }, [user])
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    const result = await updateProfile({
+      name: formData.name,
+      email: formData.email,
+      role: formData.role,
+    })
+    setIsSaving(false)
+
+    if (result.success) {
+      window.alert('Profile updated successfully.')
+    } else {
+      window.alert(result.error || 'Unable to update profile.')
+    }
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    authLogout()
+    navigate('/login')
+  }
 
   return (
     <motion.div
@@ -105,13 +142,13 @@ export default function Settings() {
               <h3 className="font-semibold text-zinc-100 mb-6">Profile Information</h3>
               <div className="flex items-center gap-4 mb-6">
                 <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400 to-accent-cyan text-xl font-bold text-white">
-                  {user.avatar}
+                  {user?.avatar || (user?.name ? user.name.charAt(0).toUpperCase() : 'U')}
                 </div>
                 <div>
-                  <p className="text-lg font-medium text-zinc-200">{user.name}</p>
-                  <p className="text-sm text-zinc-500">{user.email}</p>
+                  <p className="text-lg font-medium text-zinc-200">{user?.name || 'Your Name'}</p>
+                  <p className="text-sm text-zinc-500">{user?.email || 'your@email.com'}</p>
                   <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-300">
-                    {user.plan} Plan
+                    {user?.plan ? `${user.plan} Plan` : 'Member'}
                   </span>
                 </div>
               </div>
@@ -119,29 +156,35 @@ export default function Settings() {
                 <div>
                   <label className="text-xs text-zinc-500 mb-1.5 block">Full Name</label>
                   <input
-                    defaultValue={user.name}
+                    value={formData.name}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                     className="w-full px-4 py-2.5 rounded-xl glass text-sm text-zinc-200 bg-transparent outline-none focus:ring-2 focus:ring-brand-500/30"
                   />
                 </div>
                 <div>
                   <label className="text-xs text-zinc-500 mb-1.5 block">Email</label>
                   <input
-                    defaultValue={user.email}
+                    value={formData.email}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                     className="w-full px-4 py-2.5 rounded-xl glass text-sm text-zinc-200 bg-transparent outline-none focus:ring-2 focus:ring-brand-500/30"
                   />
                 </div>
                 <div>
                   <label className="text-xs text-zinc-500 mb-1.5 block">Role</label>
                   <input
-                    defaultValue={user.role}
+                    value={formData.role}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
                     className="w-full px-4 py-2.5 rounded-xl glass text-sm text-zinc-200 bg-transparent outline-none focus:ring-2 focus:ring-brand-500/30"
                   />
                 </div>
               </div>
-              <div className="mt-6 flex justify-end">
-                <Button size="sm">
+              <div className="mt-6 flex justify-end gap-3">
+                <Button variant="secondary" size="sm" onClick={handleLogout} type="button">
+                  Logout
+                </Button>
+                <Button size="sm" onClick={handleSave} disabled={isSaving} type="button">
                   <Save className="w-4 h-4" />
-                  Save Changes
+                  {isSaving ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </GlassCard>

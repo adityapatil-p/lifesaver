@@ -1,6 +1,20 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
-console.log("Gemini Service Key:", process.env.GEMINI_API_KEY);
+
 // Initialize Gemini API client if key is available
+const callGemini = async (model, prompt) => {
+  try {
+    const response = await model.generateContent(prompt);
+    return response;
+  } catch (error) {
+    if (error.status === 503) {
+      // Gemini Busy. Retry after 2 seconds
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const retry = await model.generateContent(prompt);
+      return retry;
+    }
+    throw error;
+  }
+};
 
 const getModel = () => {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -8,6 +22,10 @@ const getModel = () => {
   if (!apiKey) {
     return null;
   }
+
+  console.log("API Key Length:", apiKey.length);
+  console.log("Creating Gemini Client...");
+  console.log("Model: gemini-2.5-flash");
 
   const genAI = new GoogleGenerativeAI(apiKey);
 
@@ -18,10 +36,10 @@ const getModel = () => {
     },
   });
 };
-
 // Graceful fallback for schedule generation when no API Key is available
 const generateMockSchedule = (tasks) => {
   const activeTasks = tasks.filter((t) => t.status !== 'done')
+  
   const criticalTasks = activeTasks.filter((t) => t.priority === 'critical')
   const highTasks = activeTasks.filter((t) => t.priority === 'high')
 
@@ -163,120 +181,90 @@ if (!model) {
         deadline: t.deadline,
         category: t.category,
       }))
-
     const prompt = `
-      You are LifeSaver AI, an expert productivity planner.
-      Current Date/Time: ${currentDateTime.toISOString()}
-      User's Active Tasks: ${JSON.stringify(activeTasks)}
-      Total Tasks: ${activeTasks.length}
+You are LifeSaver AI.
 
-Current Time: ${new Date().toLocaleTimeString()}
+Current Date:
+${currentDateTime.toDateString()}
 
-Today: ${new Date().toDateString()}
+Current Time:
+${currentDateTime.toLocaleTimeString()}
 
-       
+Today's Tasks:
+${JSON.stringify(activeTasks)}
+
+Create the best daily schedule.
+
+Rules:
+- Schedule Critical tasks first.
+- Then High.
+- Then Medium.
+- Then Low.
+- Focus block = 60-120 minutes.
+- Break = 15-30 minutes after every focus block.
+- Add one afternoon buffer block.
+- Do not schedule after 10 PM.
+- No overlapping time blocks.
+- If deadline is today or overdue, risk is "high".
+
 Return ONLY valid JSON.
 
-Do not include markdown, code fences or explanations.
-
-The response must be directly parseable using JSON.parse().
-
-       
-      
-      
-      Return a JSON object exactly like this:
-
-      Keep all task ids unchanged.
-
 {
-  "schedule": [
+  "schedule":[
     {
-      "id": "",
-      "time": "",
-      "duration": "",
-      "task": "",
-      "type": "focus",
-      "risk": "low"
+      "id":"",
+      "time":"",
+      "duration":"",
+      "task":"",
+      "type":"focus",
+      "risk":"low"
     }
   ],
-
-  "deadlineRisks": [
+  "deadlineRisks":[
     {
-      "id": "",
-      "task": "",
-      "risk": "low",
-      "probability": 0,
-      "suggestion": ""
+      "id":"",
+      "task":"",
+      "risk":"high",
+      "probability":80,
+      "suggestion":""
     }
   ],
-
-  "recommendations": [
+  "recommendations":[
     {
-      "id": "",
-      "icon": "zap",
-      "title": "",
-      "description": "",
-      "impact": "high"
+      "id":"",
+      "icon":"zap",
+      "title":"",
+      "description":"",
+      "impact":"high"
     }
   ]
 }
-      Requirements:
+`  
 
-1. Allocate focus blocks for critical and high priority tasks first.
-
-2. Insert breaks every 90–120 minutes.
-
-3. Create a buffer block in the afternoon.
-
-4. Highlight deadline risks.
-
-5. Limit focus sessions to a maximum of 2 hours.
-
-6. Insert a 15–30 minute break after every focus block.
-
-7. Do not schedule work after 10 PM.
-
-8. Never create overlapping time blocks.
-    `
-console.log("Before Gemini Schedule");
-console.log("Sending request to Gemini...");
-console.log("Prompt Length:", prompt.length);
-console.time("Gemini Request");
-   const result = await Promise.race([
-  model.generateContent(prompt),
+const result = await Promise.race([
+  callGemini(model, prompt),
   new Promise((_, reject) =>
     setTimeout(() => reject(new Error("Gemini Timeout after 30 seconds")), 30000)
   )
 ]);
-    console.timeEnd("Gemini Request");
-console.log("Request completed");
-    console.log("After Gemini Schedule");
-    console.log("Gemini Response Received");
-    const responseText = result.response.text()
-    console.log(responseText);
-   const cleanText = responseText
+
+const responseText = result.response.text()
+const cleanText = responseText
   .replace(/```json\s*/gi, "")
   .replace(/```\s*/g, "")
   .trim();
 
 return JSON.parse(cleanText);
   } catch (error) {
-    console.error("FULL GEMINI ERROR");
-    console.error(error);
-
-    if (error.stack) {
-        console.error(error.stack);
-    }
-
+    console.error("Gemini API Error (generateScheduleAI):", error);
     return generateMockSchedule(tasks);
-}
+  }
 }
 
 
 export const prioritizeTasksAI = async (tasks) => {
 
   const model = getModel();
-  console.log("Prioritize Model Created");
 
   if (!model) {
     console.warn("GEMINI_API_KEY is not defined. Using fallback prioritization.");
@@ -289,11 +277,7 @@ export const prioritizeTasksAI = async (tasks) => {
     }));
   }
 
-  
-  
-
   try {
-    
 
     const taskInputs = tasks.map((t) => ({
       id: t._id || t.id,
@@ -304,56 +288,49 @@ export const prioritizeTasksAI = async (tasks) => {
       status: t.status,
     }))
 
-    const prompt = `
-      You are LifeSaver AI, a task prioritization engine.
-      Analyze these tasks: ${JSON.stringify(taskInputs)}
-      Current Date/Time: ${new Date().toISOString()}
-    Return ONLY valid JSON.
+   const prompt = `
+You are LifeSaver AI.
 
-Do not include markdown, code fences or explanations.
+Current Time:
+${new Date().toISOString()}
 
-The response must be directly parseable using JSON.parse().
+Tasks:
+${JSON.stringify(taskInputs)}
 
-      Recommend the optimal priority level for each active task ("critical", "high", "medium", "low") based on:
+Analyse every task.
 
-- deadline proximity
-- current priority
-- task importance
-- overdue status
+Priority Rules:
 
-Keep the original task id unchanged.
+Critical
+High
+Medium
+Low
 
-If a deadline is overdue, always assign "critical".
+Factors:
+- Deadline
+- Overdue
+- Existing priority
+- Importance
 
-Never downgrade a task that is due today.
-
-Provide a brief reasoning statement (maximum 15 words).
-     Return a JSON array exactly like this:
+Return ONLY valid JSON.
 
 [
   {
-    "id": "",
-    "priority": "high",
-    "reasoning": ""
+    "id":"",
+    "priority":"critical",
+    "reasoning":""
   }
 ]
-    `
-console.log("Before Gemini Prioritize");
-console.log("Sending request to Gemini...");
-console.log("Prompt Length:", prompt.length);
-console.time("Gemini Request");
-    const result = await Promise.race([
-  model.generateContent(prompt),
+`;
+
+const result = await Promise.race([
+  callGemini(model, prompt),
   new Promise((_, reject) =>
     setTimeout(() => reject(new Error("Gemini Timeout after 30 seconds")), 30000)
   )
 ]);
-    console.timeEnd("Gemini Request");
-console.log("Request completed");
-    console.log("After Gemini Prioritize");
-    console.log("Gemini Response Received");
-    const responseText = result.response.text()
-    console.log(responseText);
+
+const responseText = result.response.text();
     const cleanText = responseText
   .replace(/```json/g, "")
   .replace(/```/g, "")
@@ -373,7 +350,6 @@ return JSON.parse(cleanText);
 export const runRescueModeAI = async (tasks) => {
 
   const model = getModel();
-  console.log("Rescue Model Created");
 
   if (!model) {
     console.warn("GEMINI_API_KEY is not defined. Simulating Rescue Mode.");
@@ -436,16 +412,7 @@ export const runRescueModeAI = async (tasks) => {
     };
   }
 
-  
-
   try {
-    console.log("Calling Gemini...");
-    console.log("Gemini Returned");
-
-if (!model) {
-  throw new Error("Gemini model not initialized");
-}
-
     const activeTasks = tasks
   .filter((t) => t.status !== "done")
   .sort((a, b) => {
@@ -472,99 +439,64 @@ if (!model) {
   }));
 
     const prompt = `
-      You are LifeSaver AI, entering RESCUE MODE.
-      The user is heavily overloaded and at risk of missing critical deadlines.
-      Current Date/Time: ${new Date().toISOString()}
-      User's Active Tasks: ${JSON.stringify(activeTasks)}
-      Total Tasks: ${activeTasks.length}
+You are LifeSaver AI Rescue Mode.
 
-Current Time: ${new Date().toLocaleTimeString()}
+Current Time:
+${new Date().toISOString()}
 
-Today: ${new Date().toDateString()}
+Tasks:
+${JSON.stringify(activeTasks)}
 
-      You are an expert productivity coach.
+The user is overloaded.
 
-Your only goal is to help the user finish the maximum amount of important work today.
+Create an emergency schedule.
 
-Ignore medium and low priority work if deadlines are close.
+Rules:
 
-Always prioritize:
+- Focus only on Critical and High tasks.
+- Defer Medium and Low tasks.
+- Maximum focus block 2 hours.
+- Add 20 minute breaks.
+- Add one buffer block.
+- Never schedule after 10 PM.
 
-1. Critical deadlines
-2. High priority work
-3. Earliest deadlines
-4. Short tasks
-
-Create the most realistic emergency schedule possible.
-
-
-
-Requirements:
-
-1. Limit focus sessions to a maximum of 2 hours.
-
-2. Insert a 15-30 minute break after every focus block.
-
-3. Do not schedule work after 10 PM.
-
-4. Never create overlapping time blocks.
-
-- Return ONLY valid JSON.
-
-- Do not wrap the response inside markdown code blocks.
-
-- Never return anything except JSON.
-
-Defer (postpone/delay) any medium or low priority tasks that are not due immediately. 
-      Create a highly concentrated, time-blocked emergency schedule (mostly long focus sessions and short breaks) focusing ONLY on the most critical tasks.
-
-    Return a JSON object exactly like this:
-    Keep all task ids unchanged.
+Return ONLY valid JSON.
 
 {
-  "schedule": [
+  "schedule":[
     {
-      "id": "",
-      "time": "",
-      "duration": "",
-      "task": "",
-      "type": "focus",
-      "risk": "high"
+      "id":"",
+      "time":"",
+      "duration":"",
+      "task":"",
+      "type":"focus",
+      "risk":"high"
     }
   ],
-
-  "deferredTasks": [
+  "deferredTasks":[
     ""
   ],
-
-  "recommendations": [
+  "recommendations":[
     {
-      "id": "",
-      "icon": "zap",
-      "title": "",
-      "description": "",
-      "impact": "high"
+      "id":"",
+      "icon":"zap",
+      "title":"",
+      "description":"",
+      "impact":"high"
     }
   ]
 }
-    `
-  console.log("Before Gemini Rescue");
-  console.log("Sending request to Gemini...");
-  console.log("Prompt Length:", prompt.length);
-console.time("Gemini Request");
-    const result = await Promise.race([
-  model.generateContent(prompt),
+`;
+
+  const result = await Promise.race([
+  callGemini(model, prompt),
   new Promise((_, reject) =>
     setTimeout(() => reject(new Error("Gemini Timeout after 30 seconds")), 30000)
   )
 ]);
-    console.timeEnd("Gemini Request");
-console.log("Request completed");
-    console.log("After Gemini Rescue");
-    console.log("Gemini Response Received");
-    const responseText = result.response.text()
-    console.log(responseText);
-    const cleanText = responseText
+
+  const responseText = result.response.text()
+  const cleanText = responseText
   .replace(/```json/g, "")
   .replace(/```/g, "")
   .trim();
@@ -616,5 +548,3 @@ return JSON.parse(cleanText);
 }
   }
 }
-  
-

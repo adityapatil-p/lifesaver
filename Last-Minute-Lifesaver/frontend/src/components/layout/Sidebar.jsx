@@ -11,7 +11,7 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react'
-import { user } from '../../data/mockData'
+import { useAuth } from '../../context/AuthContext'
 import { cn } from '../../utils/cn'
 
 const navItems = [
@@ -61,6 +61,11 @@ function NavItem({ item, collapsed, onNavigate }) {
 }
 
 export function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
+  const { user } = useAuth()
+  const displayName = user?.name || 'Guest User'
+  const displayPlan = user?.plan || 'Free'
+  const avatarLabel = displayName.charAt(0).toUpperCase()
+
   const sidebarContent = (
     <>
       <div className="flex items-center gap-3 px-3 py-2 mb-6">
@@ -102,12 +107,12 @@ export function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) 
           )}
         >
           <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-accent-cyan text-xs font-bold text-white shrink-0">
-            {user.avatar}
+            {avatarLabel}
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-zinc-200 truncate">{user.name}</p>
-              <p className="text-xs text-zinc-500 truncate">{user.plan} Plan</p>
+              <p className="text-sm font-medium text-zinc-200 truncate">{displayName}</p>
+              <p className="text-xs text-zinc-500 truncate">{displayPlan} Plan</p>
             </div>
           )}
         </motion.div>

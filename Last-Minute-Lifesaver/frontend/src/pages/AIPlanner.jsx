@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 
@@ -21,8 +21,12 @@ export default function AIPlanner() {
   });
 
   const [loading, setLoading] = useState(false);
+  const isLoadingRef = useRef(false);
 
   const loadPlanner = async () => {
+    if (isLoadingRef.current) return;
+
+    isLoadingRef.current = true;
     setLoading(true);
 
     try {
@@ -46,6 +50,7 @@ export default function AIPlanner() {
         recommendations: [],
       });
     } finally {
+      isLoadingRef.current = false;
       setLoading(false);
     }
   };
