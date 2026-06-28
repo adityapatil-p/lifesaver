@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion'
 import { Sparkles, ArrowRight, Bot } from 'lucide-react'
 import { Button } from '../ui/Button'
+import { useAuth } from '../../context/AuthContext'
+import { useTasks } from '../../context/TaskContext'
 
 const greetings = [
   'Good morning',
@@ -16,6 +18,13 @@ function getGreeting() {
 }
 
 export function HeroSection() {
+  const { user } = useAuth()
+  const { tasks } = useTasks()
+
+  const criticalTasks = tasks.filter(
+    (task) => task.priority === 'critical' && task.status !== 'done'
+  ).length
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 20 }}
@@ -42,13 +51,18 @@ export function HeroSection() {
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
               {getGreeting()},{' '}
-              <span className="gradient-text">Alex</span>
+              <span className="gradient-text">
+                {user?.name || 'User'}
+              </span>
             </h1>
 
             <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              You have <span className="text-brand-300 font-semibold">3 critical tasks</span> due
-              today. I&apos;ve optimized your schedule — focus on the pitch deck first for maximum
-              impact.
+              You have{' '}
+              <span className="text-brand-300 font-semibold">
+                {criticalTasks} critical task{criticalTasks !== 1 ? 's' : ''}
+              </span>{' '}
+              pending. Your dashboard is synchronized with the backend and ready
+              for today's work.
             </p>
 
             <div className="flex flex-wrap gap-3">
@@ -56,6 +70,7 @@ export function HeroSection() {
                 <Sparkles className="w-4 h-4" />
                 View AI Plan
               </Button>
+
               <Button variant="secondary">
                 Quick Add Task
                 <ArrowRight className="w-4 h-4" />
@@ -70,12 +85,18 @@ export function HeroSection() {
             className="hidden lg:block relative w-48 h-48"
           >
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-brand-500/30 to-accent-violet/20 animate-pulse" />
+
             <div className="absolute inset-4 rounded-full glass flex items-center justify-center">
               <Sparkles className="w-16 h-16 text-brand-400" />
             </div>
+
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+              transition={{
+                duration: 20,
+                repeat: Infinity,
+                ease: 'linear',
+              }}
               className="absolute inset-0 rounded-full border border-dashed border-brand-500/20"
             />
           </motion.div>

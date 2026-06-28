@@ -15,9 +15,13 @@ import {
   Legend,
 } from 'recharts'
 import { GlassCard } from '../ui/GlassCard'
-import { analyticsData } from '../../data/mockData'
 import { useTheme } from '../../context/ThemeContext'
 import { TrendingUp, BarChart3, PieChart as PieIcon, Layers } from 'lucide-react'
+import {
+  getAnalyticsSummary,
+  getAnalyticsDetails,
+} from "../../services/analyticsService";
+import { useState, useEffect } from 'react'
 
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
@@ -35,8 +39,19 @@ function ChartTooltip({ active, payload, label }) {
 
 export function WeeklyPerformanceChart() {
   const { isDark } = useTheme()
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
   const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
   const textColor = isDark ? '#71717a' : '#a1a1aa'
+
+  useEffect(() => {
+    getAnalyticsDetails().then(res => {
+      setData(res.weeklyPerformance)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) return <GlassCard><div className="h-72 flex items-center justify-center text-zinc-500">Loading Chart...</div></GlassCard>
 
   return (
     <GlassCard>
@@ -46,7 +61,7 @@ export function WeeklyPerformanceChart() {
       </div>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={analyticsData.weeklyPerformance}>
+          <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
             <XAxis dataKey="week" tick={{ fill: textColor, fontSize: 12 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: textColor, fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -63,8 +78,19 @@ export function WeeklyPerformanceChart() {
 
 export function ProductivityTrendChart() {
   const { isDark } = useTheme()
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
   const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
   const textColor = isDark ? '#71717a' : '#a1a1aa'
+
+  useEffect(() => {
+    getAnalyticsDetails().then(res => {
+      setData(res.productivityTrend)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) return <GlassCard><div className="h-72 flex items-center justify-center text-zinc-500">Loading Chart...</div></GlassCard>
 
   return (
     <GlassCard>
@@ -74,7 +100,7 @@ export function ProductivityTrendChart() {
       </div>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={analyticsData.productivityTrend}>
+          <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
             <XAxis dataKey="date" tick={{ fill: textColor, fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis domain={[60, 100]} tick={{ fill: textColor, fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -97,7 +123,18 @@ export function ProductivityTrendChart() {
 
 export function CompletionStatsChart() {
   const { isDark } = useTheme()
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
   const textColor = isDark ? '#71717a' : '#a1a1aa'
+
+  useEffect(() => {
+    getAnalyticsDetails().then(res => {
+      setData(res.completionStats)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) return <GlassCard><div className="h-72 flex items-center justify-center text-zinc-500">Loading Chart...</div></GlassCard>
 
   return (
     <GlassCard>
@@ -109,7 +146,7 @@ export function CompletionStatsChart() {
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={analyticsData.completionStats}
+              data={data}
               cx="50%"
               cy="50%"
               innerRadius={60}
@@ -117,7 +154,7 @@ export function CompletionStatsChart() {
               paddingAngle={4}
               dataKey="value"
             >
-              {analyticsData.completionStats.map((entry) => (
+              {data.map((entry) => (
                 <Cell key={entry.name} fill={entry.color} />
               ))}
             </Pie>
@@ -135,8 +172,19 @@ export function CompletionStatsChart() {
 
 export function CategoryBreakdownChart() {
   const { isDark } = useTheme()
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
   const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
   const textColor = isDark ? '#71717a' : '#a1a1aa'
+
+  useEffect(() => {
+    getAnalyticsDetails().then(res => {
+      setData(res.categoryBreakdown)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) return <GlassCard><div className="h-72 flex items-center justify-center text-zinc-500">Loading Chart...</div></GlassCard>
 
   return (
     <GlassCard>
@@ -146,7 +194,7 @@ export function CategoryBreakdownChart() {
       </div>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={analyticsData.categoryBreakdown} layout="vertical">
+          <BarChart data={data} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
             <XAxis type="number" tick={{ fill: textColor, fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
@@ -173,12 +221,27 @@ export function CategoryBreakdownChart() {
 }
 
 export function AnalyticsSummary() {
-  const stats = [
-    { label: 'Tasks Completed', value: '247', change: '+12%' },
-    { label: 'Avg. Productivity', value: '84', change: '+8%' },
-    { label: 'Focus Hours', value: '156h', change: '+15%' },
-    { label: 'On-time Rate', value: '89%', change: '+3%' },
-  ]
+  const [stats, setStats] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getAnalyticsSummary().then(res => {
+      setStats(res.summary)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <GlassCard key={i} hover={false} className="text-center">
+            <div className="h-16 animate-pulse bg-white/5 rounded-md"></div>
+          </GlassCard>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
