@@ -2,6 +2,9 @@
   "name": "lifesaver-backend",
   "version": "1.0.0",
   "description": "Backend API for LifeSaver AI-powered productivity assistant",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "main": "src/server.js",
   "type": "module",
   "scripts": {

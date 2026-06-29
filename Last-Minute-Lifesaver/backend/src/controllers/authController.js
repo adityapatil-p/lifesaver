@@ -3,7 +3,13 @@ import User from '../models/User.js'
 
 // Helper to generate JWT Token
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'lifesaver-super-secret-key-1029384756', {
+  const jwtSecret = process.env.JWT_SECRET
+
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET environment variable is required for authentication.')
+  }
+
+  return jwt.sign({ id }, jwtSecret, {
     expiresIn: '30d',
   })
 }

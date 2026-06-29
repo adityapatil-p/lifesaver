@@ -20,7 +20,12 @@ export const protect = async (req, res, next) => {
       console.log("Token Parts:", token.split(".").length);
 
       // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'lifesaver-super-secret-key-1029384756')
+      const jwtSecret = process.env.JWT_SECRET
+      if (!jwtSecret) {
+        throw new Error('JWT_SECRET environment variable is required for authentication.')
+      }
+
+      const decoded = jwt.verify(token, jwtSecret)
 
       // Get user from database (exclude password field)
       req.user = await User.findById(decoded.id).select('-password')
