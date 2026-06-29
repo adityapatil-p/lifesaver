@@ -23,8 +23,7 @@ export function AuthProvider({ children }) {
       try {
         const data = await getProfileService();
         setUser(data.user);
-      } catch (error) {
-        console.error('Failed to load profile:', error);
+      } catch {
         logout();
       } finally {
         setIsLoading(false);
@@ -43,7 +42,6 @@ export function AuthProvider({ children }) {
       setUser(data.user);
       return { success: true };
     } catch (error) {
-      console.error('Login request error:', error);
       return { success: false, error: error.response?.data?.error || 'Server connection error. Please try again.' };
     } finally {
       setIsLoading(false);
@@ -59,7 +57,6 @@ export function AuthProvider({ children }) {
       setUser(data.user);
       return { success: true };
     } catch (error) {
-      console.error('Register request error:', error);
       return { success: false, error: error.response?.data?.error || 'Server connection error. Please try again.' };
     } finally {
       setIsLoading(false);
@@ -80,7 +77,6 @@ export function AuthProvider({ children }) {
       setUser(data.user);
       return { success: true };
     } catch (error) {
-      console.error('Update profile request error:', error);
       return { success: false, error: error.response?.data?.error || 'Server communication error.' };
     }
   };

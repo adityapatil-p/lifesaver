@@ -41,9 +41,7 @@ export default function AIPlanner() {
           ? res.recommendations
           : [],
       });
-    } catch (err) {
-      console.error("Planner Error:", err);
-
+    } catch {
       setPlannerData({
         schedule: [],
         deadlineRisks: [],

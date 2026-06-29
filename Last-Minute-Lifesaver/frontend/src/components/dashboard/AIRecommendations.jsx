@@ -10,13 +10,17 @@ const iconMap = {
   brain: Brain,
 };
 
+function isCompleted(task) {
+  return task.status === "completed" || task.status === "done";
+}
+
 export function AIRecommendations() {
   const { tasks } = useTasks();
 
   const recommendations = [];
 
   const highPriority = tasks.filter(
-    (task) => task.priority === "high"
+    (task) => (task.priority === "high" || task.priority === "critical") && !isCompleted(task)
   );
 
   if (highPriority.length > 0) {
@@ -30,7 +34,7 @@ export function AIRecommendations() {
   }
 
   const pendingTasks = tasks.filter(
-    (task) => task.status !== "completed"
+    (task) => !isCompleted(task)
   );
 
   if (pendingTasks.length > 0) {

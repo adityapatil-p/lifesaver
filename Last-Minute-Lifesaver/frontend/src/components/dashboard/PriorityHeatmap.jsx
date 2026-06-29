@@ -1,10 +1,11 @@
 import { motion } from 'framer-motion'
 import { Grid3X3 } from 'lucide-react'
 import { GlassCard } from '../ui/GlassCard'
-import { heatmapData } from '../../data/mockData'
+import { useTasks } from '../../context/TaskContext'
 
 const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+const hours = ['6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM']
 
 function getHeatColor(value) {
   if (value === 0) return 'bg-white/[0.03]'
@@ -15,7 +16,44 @@ function getHeatColor(value) {
   return 'bg-brand-500'
 }
 
+function getHourBucket(date) {
+  const hour = date.getHours()
+
+  if (hour < 7) return '6AM'
+  if (hour < 9) return '8AM'
+  if (hour < 11) return '10AM'
+  if (hour < 13) return '12PM'
+  if (hour < 15) return '2PM'
+  if (hour < 17) return '4PM'
+  if (hour < 19) return '6PM'
+  return '8PM'
+}
+
 export function PriorityHeatmap() {
+  const { tasks } = useTasks()
+  const heatmapData = hours.map((hour) => ({
+    hour,
+    mon: 0,
+    tue: 0,
+    wed: 0,
+    thu: 0,
+    fri: 0,
+    sat: 0,
+    sun: 0,
+  }))
+
+  tasks.forEach((task) => {
+    if (!task.deadline) return
+
+    const deadline = new Date(task.deadline)
+    const day = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][deadline.getDay()]
+    const row = heatmapData.find((item) => item.hour === getHourBucket(deadline))
+
+    if (row) {
+      row[day] += task.priority === 'critical' ? 2 : 1
+    }
+  })
+
   return (
     <GlassCard>
       <div className="flex items-center justify-between mb-5">

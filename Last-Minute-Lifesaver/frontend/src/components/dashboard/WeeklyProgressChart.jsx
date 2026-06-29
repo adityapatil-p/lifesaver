@@ -11,8 +11,12 @@ import {
 } from 'recharts'
 import { BarChart3 } from 'lucide-react'
 import { GlassCard } from '../ui/GlassCard'
-import { weeklyProgress } from '../../data/mockData'
 import { useTheme } from '../../context/ThemeContext'
+import { useTasks } from '../../context/TaskContext'
+
+function isCompleted(task) {
+  return task.status === 'completed' || task.status === 'done'
+}
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
@@ -30,8 +34,25 @@ function CustomTooltip({ active, payload, label }) {
 
 export function WeeklyProgressChart() {
   const { isDark } = useTheme()
+  const { tasks } = useTasks()
   const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
   const textColor = isDark ? '#71717a' : '#a1a1aa'
+  const weeklyProgress = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => ({
+    day,
+    planned: 0,
+    completed: 0,
+  }))
+
+  tasks.forEach((task) => {
+    if (!task.deadline) return
+
+    const dayIndex = new Date(task.deadline).getDay()
+    weeklyProgress[dayIndex].planned += 1
+
+    if (isCompleted(task)) {
+      weeklyProgress[dayIndex].completed += 1
+    }
+  })
 
   return (
     <GlassCard>

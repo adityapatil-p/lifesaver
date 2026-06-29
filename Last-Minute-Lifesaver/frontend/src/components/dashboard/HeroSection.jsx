@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Sparkles, ArrowRight, Bot } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Sparkles, ArrowRight, Bot, X, Plus } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
 import { useTasks } from '../../context/TaskContext'
@@ -17,12 +19,148 @@ function getGreeting() {
   return greetings[2]
 }
 
+function QuickAddTaskModal({ onClose }) {
+  const { addTask, error } = useTasks()
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [priority, setPriority] = useState('medium')
+  const [deadline, setDeadline] = useState('')
+  const [formError, setFormError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setFormError('')
+
+    if (!title.trim()) {
+      setFormError('Task title is required.')
+      return
+    }
+
+    if (!deadline) {
+      setFormError('Task deadline is required.')
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      await addTask({
+        title: title.trim(),
+        description,
+        priority,
+        deadline,
+        status: "todo",
+      })
+
+      onClose()
+    } catch (err) {
+      setFormError(err?.response?.data?.error || error || 'Unable to create task. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+      <div className="bg-zinc-800 p-6 rounded-lg w-full max-w-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-white">Add New Task</h2>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        {formError && (
+          <div className="mb-4 rounded-md border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            {formError}
+          </div>
+        )}
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label htmlFor="quick-title" className="block text-sm font-medium text-zinc-400 mb-1">Title</label>
+            <input
+              type="text"
+              id="quick-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full bg-zinc-700 border border-zinc-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label htmlFor="quick-description" className="block text-sm font-medium text-zinc-400 mb-1">
+              Description
+            </label>
+
+            <textarea
+              id="quick-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-zinc-700 border border-zinc-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              rows="3"
+            />
+          </div>
+
+
+          <div className="mb-4">
+            <label
+              htmlFor="quick-deadline"
+              className="block text-sm font-medium text-zinc-400 mb-1"
+            >
+              Deadline
+            </label>
+
+            <input
+              type="datetime-local"
+              id="quick-deadline"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              className="w-full bg-zinc-700 border border-zinc-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              required
+            />
+          </div>
+
+
+          <div className="mb-6">
+            <label htmlFor="quick-priority" className="block text-sm font-medium text-zinc-400 mb-1">
+              Priority
+            </label>
+
+            <select
+              id="quick-priority"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="w-full bg-zinc-700 border border-zinc-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              <Plus className="h-4 w-4 mr-2" />
+              {isSaving ? 'Saving...' : 'Add Task'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export function HeroSection() {
   const { user } = useAuth()
   const { tasks } = useTasks()
+  const navigate = useNavigate()
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false)
 
   const criticalTasks = tasks.filter(
-    (task) => task.priority === 'critical' && task.status !== 'done'
+    (task) => task.priority === 'critical' && task.status !== 'completed' && task.status !== 'done'
   ).length
 
   return (
@@ -66,12 +204,12 @@ export function HeroSection() {
             </p>
 
             <div className="flex flex-wrap gap-3">
-              <Button>
+              <Button onClick={() => navigate('/planner')}>
                 <Sparkles className="w-4 h-4" />
                 View AI Plan
               </Button>
 
-              <Button variant="secondary">
+              <Button variant="secondary" onClick={() => setIsQuickAddOpen(true)}>
                 Quick Add Task
                 <ArrowRight className="w-4 h-4" />
               </Button>
@@ -102,6 +240,7 @@ export function HeroSection() {
           </motion.div>
         </div>
       </div>
+      {isQuickAddOpen && <QuickAddTaskModal onClose={() => setIsQuickAddOpen(false)} />}
     </motion.section>
   )
 }

@@ -4,6 +4,10 @@ import { GlassCard } from "../ui/GlassCard";
 import { PriorityBadge } from "../ui/Badge";
 import { useTasks } from "../../context/TaskContext";
 
+function isCompleted(task) {
+  return task.status === "completed" || task.status === "done";
+}
+
 function formatDeadline(dateStr) {
   if (!dateStr) return "No deadline";
 
@@ -27,7 +31,8 @@ export function FocusTasks() {
   const { tasks } = useTasks();
 
   const focusTasks = tasks
-    .filter((task) => task.status !== "completed")
+    .filter((task) => !isCompleted(task))
+    .sort((a, b) => new Date(a.deadline || 8640000000000000) - new Date(b.deadline || 8640000000000000))
     .slice(0, 5);
 
   return (
@@ -108,7 +113,7 @@ export function UpcomingDeadlines() {
   const { tasks } = useTasks();
 
   const upcomingDeadlines = [...tasks]
-    .filter((task) => task.deadline)
+    .filter((task) => task.deadline && !isCompleted(task))
     .sort(
       (a, b) =>
         new Date(a.deadline) - new Date(b.deadline)

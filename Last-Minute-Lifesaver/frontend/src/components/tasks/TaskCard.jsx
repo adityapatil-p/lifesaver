@@ -1,27 +1,47 @@
 import { motion } from 'framer-motion'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Clock, Calendar, Tag, Trash2 } from 'lucide-react'
-import { PriorityBadge, StatusBadge } from '../ui/Badge'
+import { GripVertical, Clock, Calendar, Trash2, Pencil, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { PriorityBadge, StatusBadge, Badge } from '../ui/Badge'
 import { cn } from '../../utils/cn'
 import { useTasks } from '../../context/TaskContext'
 
-function formatDeadline(dateStr) {
-  if (!dateStr) return '';
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', {
+function formatDate(dateStr) {
+  if (!dateStr) return 'No date'
+
+  return new Date(dateStr).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
+    year: 'numeric',
   })
 }
 
-function isOverdue(dateStr) {
-  if (!dateStr) return false;
-  return new Date(dateStr) < new Date()
+function formatDeadline(dateStr) {
+  if (!dateStr) return 'No deadline'
+
+  return new Date(dateStr).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
-export function TaskCard({ task, onClick }) {
-  const { deleteTask } = useTasks();
+function isCompleted(task) {
+  return task.status === 'completed' || task.status === 'done'
+}
+
+function isOverdue(task) {
+  if (!task.deadline || isCompleted(task)) return false
+  return new Date(task.deadline) < new Date()
+}
+
+function getTaskId(task) {
+  return task?._id || task?.id
+}
+
+export function TaskCard({ task, onEdit }) {
+  const { deleteTask, completeTask } = useTasks()
   const {
     attributes,
     listeners,
@@ -29,18 +49,33 @@ export function TaskCard({ task, onClick }) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task._id })
+  } = useSortable({ id: getTaskId(task) })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   }
 
-  const overdue = isOverdue(task.deadline) && task.status !== 'done'
+  const overdue = isOverdue(task)
+  const completed = isCompleted(task)
 
-  const handleDelete = (e) => {
-    e.stopPropagation();
-    deleteTask(task._id);
+  const handleDelete = async (e) => {
+    e.stopPropagation()
+    if (window.confirm('Delete this task? This cannot be undone.')) {
+      await deleteTask(getTaskId(task))
+    }
+  }
+
+  const handleComplete = async (e) => {
+    e.stopPropagation()
+    if (!completed) {
+      await completeTask(getTaskId(task))
+    }
+  }
+
+  const handleEdit = (e) => {
+    e.stopPropagation()
+    onEdit(task)
   }
 
   return (
@@ -56,7 +91,7 @@ export function TaskCard({ task, onClick }) {
         isDragging && 'shadow-2xl shadow-brand-500/20 z-50',
         overdue ? 'border-red-500/30' : 'border-white/[0.05] hover:border-brand-500/20'
       )}
-      onClick={onClick}
+      onClick={handleEdit}
     >
       <div className="flex items-start gap-3">
         <button
@@ -72,49 +107,70 @@ export function TaskCard({ task, onClick }) {
             <h4
               className={cn(
                 'text-sm font-medium text-zinc-200',
-                task.status === 'done' && 'line-through text-zinc-500'
+                completed && 'line-through text-zinc-500'
               )}
             >
               {task.title}
             </h4>
-            <PriorityBadge priority={task.priority} />
+            <PriorityBadge priority={task.priority || 'medium'} />
           </div>
 
-          {task.description && (
-            <p className="text-xs text-zinc-500 mb-3 line-clamp-2">{task.description}</p>
-          )}
+          <p className="text-xs text-zinc-500 mb-3 line-clamp-2">
+            {task.description || 'No description'}
+          </p>
 
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            <StatusBadge status={task.status} />
-            {task.category &&
-              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500 px-2 py-0.5 rounded-full bg-white/[0.03]">
-                <Tag className="w-3 h-3" />
-                {task.category}
-              </span>
-            }
+            <StatusBadge status={completed ? 'completed' : task.status} />
+            {overdue && (
+              <Badge variant="critical" className="gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Overdue
+              </Badge>
+            )}
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
             <div
               className={cn(
                 'flex items-center gap-1.5 text-xs',
                 overdue ? 'text-red-400' : 'text-zinc-500'
               )}
             >
-              {task.deadline && 
-                <>
-                  <Calendar className="w-3.5 h-3.5" />
-                  {formatDeadline(task.deadline)}
-                  {overdue && <span className="font-medium">· Overdue</span>}
-                </>
-              }
+              <Calendar className="w-3.5 h-3.5" />
+              {formatDeadline(task.deadline)}
             </div>
 
+            <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <Clock className="w-3.5 h-3.5" />
+              Created {formatDate(task.createdAt)}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
             <button
+              type="button"
+              onClick={handleEdit}
+              className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-brand-300 transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit
+            </button>
+            <button
+              type="button"
               onClick={handleDelete}
-              className="text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-red-400 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={handleComplete}
+              disabled={completed}
+              className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-emerald-400 disabled:text-emerald-500 disabled:cursor-default transition-colors"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Complete
             </button>
           </div>
         </div>
@@ -124,7 +180,7 @@ export function TaskCard({ task, onClick }) {
 }
 
 export function TaskCardStatic({ task }) {
-  const overdue = isOverdue(task.deadline) && task.status !== 'done'
+  const overdue = isOverdue(task)
 
   return (
     <motion.div
@@ -136,7 +192,7 @@ export function TaskCardStatic({ task }) {
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <h4 className="text-sm font-medium text-zinc-200">{task.title}</h4>
-        <PriorityBadge priority={task.priority} />
+        <PriorityBadge priority={task.priority || 'medium'} />
       </div>
       <div className="flex items-center gap-1.5 text-xs text-zinc-500">
         <Clock className="w-3.5 h-3.5" />

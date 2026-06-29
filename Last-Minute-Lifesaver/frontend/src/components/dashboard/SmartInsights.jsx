@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   TrendingUp,
@@ -6,23 +5,52 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
-import { getAnalyticsDetails } from "../../services/analyticsService";
+import { useTasks } from "../../context/TaskContext";
+
+function isCompleted(task) {
+  return task.status === "completed" || task.status === "done";
+}
+
+function isToday(task) {
+  return task.deadline && new Date(task.deadline).toDateString() === new Date().toDateString();
+}
+
+function isOverdue(task) {
+  return task.deadline && !isCompleted(task) && new Date(task.deadline) < new Date();
+}
 
 export function SmartInsights() {
-  const [insights, setInsights] = useState([]);
+  const { tasks } = useTasks();
+  const completed = tasks.filter(isCompleted).length;
+  const pending = tasks.length - completed;
+  const critical = tasks.filter((task) => task.priority === "critical" && !isCompleted(task)).length;
+  const today = tasks.filter(isToday).length;
+  const overdue = tasks.filter(isOverdue).length;
+  const completionRate = tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
 
-  useEffect(() => {
-    const loadInsights = async () => {
-      try {
-        const data = await getAnalyticsDetails();
-        setInsights(data.smartInsights || []);
-      } catch (err) {
-        console.error("Failed to load smart insights", err);
-      }
-    };
-
-    loadInsights();
-  }, []);
+  const insights = [
+    {
+      id: "critical",
+      metric: critical,
+      label: "Critical Tasks",
+      trend: critical > 0 ? "down" : "up",
+      detail: `${today} due today · ${overdue} overdue`,
+    },
+    {
+      id: "status",
+      metric: `${completed}/${tasks.length}`,
+      label: "Completed",
+      trend: completionRate >= 50 ? "up" : "down",
+      detail: `${pending} pending · ${completionRate}% completion rate`,
+    },
+    {
+      id: "overdue",
+      metric: overdue,
+      label: "Overdue",
+      trend: overdue > 0 ? "down" : "up",
+      detail: overdue > 0 ? "Needs attention now." : "No overdue tasks.",
+    },
+  ];
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

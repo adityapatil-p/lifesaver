@@ -6,6 +6,11 @@ export const getTasks = async () => {
     return response.data.tasks;
 };
 
+export const getTask = async (id) => {
+    const response = await api.get(`/api/tasks/${id}`);
+    return response.data.task;
+};
+
 // Create task
 export const createTask = async (taskData) => {
     const response = await api.post("/api/tasks", taskData);
@@ -15,6 +20,21 @@ export const createTask = async (taskData) => {
 // Update task
 export const updateTask = async (id, taskData) => {
     const response = await api.put(`/api/tasks/${id}`, taskData);
+    return response.data.task;
+};
+
+export const completeTask = async (id) => {
+    const response = await api.patch(`/api/tasks/${id}/complete`);
+    return response.data.task;
+};
+
+export const updateTaskStatus = async (id, status) => {
+    const response = await api.patch(`/api/tasks/${id}/status`, { status });
+    return response.data.task;
+};
+
+export const updateTaskPriority = async (id, priority) => {
+    const response = await api.patch(`/api/tasks/${id}/priority`, { priority });
     return response.data.task;
 };
 

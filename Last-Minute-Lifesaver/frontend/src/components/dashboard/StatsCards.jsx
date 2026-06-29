@@ -1,8 +1,15 @@
 import { motion } from 'framer-motion'
 import { TrendingUp, CheckCircle2 } from 'lucide-react'
 import { GlassCard } from '../ui/GlassCard'
-import { useEffect, useState } from 'react'
-import { getAnalyticsSummary } from '../../services/analyticsService'
+import { useTasks } from '../../context/TaskContext'
+
+function isCompleted(task) {
+  return task.status === 'completed' || task.status === 'done'
+}
+
+function isOverdue(task) {
+  return task.deadline && !isCompleted(task) && new Date(task.deadline) < new Date()
+}
 
 function CircularProgress({
   value,
@@ -74,21 +81,12 @@ function CircularProgress({
 }
 
 export function ProductivityScore() {
-  const [value, setValue] = useState(0)
-
-  useEffect(() => {
-    const load = async () => {
-      const res = await getAnalyticsSummary()
-
-      const score = parseInt(
-        res.summary.find((item) => item.label === 'Productivity')?.value || '0'
-      )
-
-      setValue(score)
-    }
-
-    load()
-  }, [])
+  const { tasks } = useTasks()
+  const total = tasks.length
+  const completed = tasks.filter(isCompleted).length
+  const critical = tasks.filter((task) => task.priority === 'critical' && !isCompleted(task)).length
+  const overdue = tasks.filter(isOverdue).length
+  const value = total === 0 ? 0 : Math.max(0, Math.min(100, Math.round((completed / total) * 100) + critical * 3 - overdue * 8))
 
   return (
     <GlassCard className="flex flex-col items-center text-center">
@@ -102,29 +100,18 @@ export function ProductivityScore() {
       <CircularProgress value={value} color="brand" />
 
       <p className="mt-4 text-xs text-zinc-500">
-        Live analytics from backend
+        {critical} critical · {overdue} overdue · {total - completed} pending
       </p>
     </GlassCard>
   )
 }
 
 export function CompletionRate() {
-  const [value, setValue] = useState(0)
-
-  useEffect(() => {
-    const load = async () => {
-      const res = await getAnalyticsSummary()
-
-      const score = parseInt(
-        res.summary.find((item) => item.label === 'Completion Rate')?.value ||
-        '0'
-      )
-
-      setValue(score)
-    }
-
-    load()
-  }, [])
+  const { tasks } = useTasks()
+  const total = tasks.length
+  const completed = tasks.filter(isCompleted).length
+  const pending = total - completed
+  const value = total > 0 ? Math.round((completed / total) * 100) : 0
 
   return (
     <GlassCard className="flex flex-col items-center text-center">
@@ -138,7 +125,7 @@ export function CompletionRate() {
       <CircularProgress value={value} color="emerald" />
 
       <p className="mt-4 text-xs text-zinc-500">
-        Live analytics from backend
+        {completed} completed · {pending} pending
       </p>
     </GlassCard>
   )
