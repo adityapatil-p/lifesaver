@@ -2,7 +2,7 @@ import api from "./api";
 
 // Summary
 export const getAnalyticsSummary = async () => {
-    const { data } = await api.get("/analytics/summary");
+    const { data } = await api.get("/api/analytics/summary");
 
     const s = data.summary;
 
@@ -34,7 +34,7 @@ export const getAnalyticsSummary = async () => {
 
 // Details
 export const getAnalyticsDetails = async () => {
-    const { data } = await api.get("/analytics/details");
+    const { data } = await api.get("/api/analytics/details");
 
     return data.details;
 };
