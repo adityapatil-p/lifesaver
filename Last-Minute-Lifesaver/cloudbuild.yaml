@@ -1,7 +1,18 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 steps:
   - name: "gcr.io/cloud-builders/docker"
-    args: ["build", "-t", "gcr.io/$PROJECT_ID/lifesaver-backend", "./backend"]
+    args:
+      - "build"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/lifesaver-backend"
+      - "./Last-Minute-Lifesaver/backend"
+
   - name: "gcr.io/cloud-builders/docker"
-    args: ["push", "gcr.io/$PROJECT_ID/lifesaver-backend"]
+    args:
+      - "push"
+      - "gcr.io/$PROJECT_ID/lifesaver-backend"
+
 images:
   - "gcr.io/$PROJECT_ID/lifesaver-backend"
