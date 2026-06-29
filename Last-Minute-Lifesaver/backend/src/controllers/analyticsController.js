@@ -1,5 +1,12 @@
 import Task from '../models/Task.js'
 
+const taskOwnerQuery = (userId, extra = {}) => ({
+  ...extra,
+  $or: [{ user: userId }, { userId }],
+})
+
+const isCompleted = (task) => task.status === 'completed' || task.status === 'done'
+
 // Helper to determine day label from date
 const getDayLabel = (date) => {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -11,9 +18,9 @@ const calculateProductivityScore = (tasks) => {
   if (tasks.length === 0) return 80 // Default baseline score
 
   const total = tasks.length
-  const completed = tasks.filter((t) => t.status === 'done').length
-  const criticalCompleted = tasks.filter((t) => t.status === 'done' && t.priority === 'critical').length
-  const overdue = tasks.filter((t) => t.status !== 'done' && new Date(t.deadline) < new Date()).length
+  const completed = tasks.filter(isCompleted).length
+  const criticalCompleted = tasks.filter((t) => isCompleted(t) && t.priority === 'critical').length
+  const overdue = tasks.filter((t) => !isCompleted(t) && new Date(t.deadline) < new Date()).length
 
   // Base score based on completion rate
   let score = Math.round((completed / total) * 100)
@@ -31,10 +38,10 @@ const calculateProductivityScore = (tasks) => {
 // @access  Private
 export const getSummary = async (req, res) => {
   try {
-    const tasks = await Task.find({ userId: req.user._id })
+    const tasks = await Task.find(taskOwnerQuery(req.user._id))
 
     const total = tasks.length
-    const completed = tasks.filter((t) => t.status === 'done').length
+    const completed = tasks.filter(isCompleted).length
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0
     const productivityScore = calculateProductivityScore(tasks)
 
@@ -42,7 +49,7 @@ export const getSummary = async (req, res) => {
     const now = new Date()
     const futureLimit = new Date(now.getTime() + 48 * 60 * 60 * 1000)
     const upcomingDeadlinesCount = tasks.filter(
-      (t) => t.status !== 'done' && new Date(t.deadline) >= now && new Date(t.deadline) <= futureLimit
+      (t) => !isCompleted(t) && new Date(t.deadline) >= now && new Date(t.deadline) <= futureLimit
     ).length
 
     res.json({
@@ -56,7 +63,6 @@ export const getSummary = async (req, res) => {
       },
     })
   } catch (error) {
-    console.error('Analytics Summary Error:', error)
     res.status(500).json({ success: false, error: error.message })
   }
 }
@@ -66,12 +72,12 @@ export const getSummary = async (req, res) => {
 // @access  Private
 export const getDetails = async (req, res) => {
   try {
-    const tasks = await Task.find({ userId: req.user._id })
+    const tasks = await Task.find(taskOwnerQuery(req.user._id))
 
     // 1. Completion Stats Breakdown
-    const completedCount = tasks.filter((t) => t.status === 'done').length
+    const completedCount = tasks.filter(isCompleted).length
     const inProgressCount = tasks.filter((t) => t.status === 'in-progress').length
-    const overdueCount = tasks.filter((t) => t.status !== 'done' && new Date(t.deadline) < new Date()).length
+    const overdueCount = tasks.filter((t) => !isCompleted(t) && new Date(t.deadline) < new Date()).length
     const todoCount = tasks.filter((t) => t.status === 'todo' && new Date(t.deadline) >= new Date()).length
 
     const completionStats = [
@@ -109,18 +115,13 @@ export const getDetails = async (req, res) => {
       const weekDay = weeklyProgress.find((w) => w.day === dayName)
       if (weekDay) {
         weekDay.planned += 1
-        if (t.status === 'done') {
+        if (isCompleted(t)) {
           weekDay.completed += 1
         }
       }
     })
 
-    // Fill in default values if zero tasks for design display
     weeklyProgress.forEach((w) => {
-      if (w.planned === 0) {
-        w.planned = Math.floor(Math.random() * 5) + 3
-        w.completed = Math.floor(Math.random() * w.planned)
-      }
       w.focus = w.planned > 0 ? Math.round((w.completed / w.planned) * 100) : 80
     })
 
@@ -130,11 +131,8 @@ export const getDetails = async (req, res) => {
     for (let i = 6; i >= 0; i--) {
       const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
       const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      
-      // Simulate historical scores trending up to the current calculated score
       const currentScore = calculateProductivityScore(tasks)
-      const scoreModifier = i * 2 - Math.floor(Math.random() * 4)
-      const score = Math.max(50, Math.min(100, currentScore - scoreModifier))
+      const score = currentScore
       
       productivityTrend.push({ date: dateStr, score })
     }
@@ -145,10 +143,30 @@ export const getDetails = async (req, res) => {
       const entry = { hour: h }
       const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
       days.forEach((d) => {
-        // Assign random/activity intensity values (0 to 5)
-        entry[d] = Math.floor(Math.random() * 6)
+        entry[d] = 0
       })
       return entry
+    })
+
+    tasks.forEach((t) => {
+      if (!t.deadline) return
+
+      const date = new Date(t.deadline)
+      const day = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][date.getDay()]
+      const hour = date.getHours()
+      const bucket = hour < 7 ? '6AM'
+        : hour < 9 ? '8AM'
+          : hour < 11 ? '10AM'
+            : hour < 13 ? '12PM'
+              : hour < 15 ? '2PM'
+                : hour < 17 ? '4PM'
+                  : hour < 19 ? '6PM'
+                    : '8PM'
+      const row = heatmapData.find((item) => item.hour === bucket)
+
+      if (row) {
+        row[day] += 1
+      }
     })
 
     // 6. Weekly Performance list (for history charts)
@@ -157,14 +175,14 @@ export const getDetails = async (req, res) => {
       { week: 'W2', tasks: 15, completed: 12, hours: 22 },
       { week: 'W3', tasks: 18, completed: 14, hours: 26 },
       { week: 'W4', tasks: 20, completed: 18, hours: 30 },
-      { week: 'W5', tasks: tasks.length + 5, completed: completedCount + 3, hours: 35 },
+      { week: 'W5', tasks: tasks.length, completed: completedCount, hours: 35 },
       { week: 'W6', tasks: tasks.length, completed: completedCount, hours: 38 },
     ]
 
     // 7. Smart Insights
     const pScore = calculateProductivityScore(tasks)
-    const onTimeRate = tasks.filter((t) => t.status === 'done').length > 0
-      ? Math.round((tasks.filter((t) => t.status === 'done' && new Date(t.completedAt || t.updatedAt) <= new Date(t.deadline)).length / completedCount) * 100)
+    const onTimeRate = tasks.filter(isCompleted).length > 0
+      ? Math.round((tasks.filter((t) => isCompleted(t) && new Date(t.completedAt || t.updatedAt) <= new Date(t.deadline)).length / completedCount) * 100)
       : 85
 
     const smartInsights = [
@@ -204,7 +222,6 @@ export const getDetails = async (req, res) => {
       },
     })
   } catch (error) {
-    console.error('Analytics Details Error:', error)
     res.status(500).json({ success: false, error: error.message })
   }
 }

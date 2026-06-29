@@ -5,6 +5,10 @@ const taskSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+    },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
       required: true,
     },
     title: {
@@ -23,7 +27,7 @@ const taskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['todo', 'in-progress', 'done'],
+      enum: ['todo', 'in-progress', 'completed'],
       default: 'todo',
     },
     deadline: {
@@ -69,10 +73,27 @@ taskSchema.virtual('id').get(function () {
   return this._id.toHexString()
 })
 
-// Set completedAt when status is updated to 'done'
+// Set completedAt when status is updated to 'completed'
+taskSchema.pre('validate', function (next) {
+  if (!this.user && this.userId) {
+    this.user = this.userId
+  }
+
+  if (!this.userId && this.user) {
+    this.userId = this.user
+  }
+
+  if (this.status === 'done') {
+    this.status = 'completed'
+  }
+
+  next()
+})
+
+// Set completedAt when status is updated to 'completed'
 taskSchema.pre('save', function (next) {
   if (this.isModified('status')) {
-    if (this.status === 'done') {
+    if (this.status === 'completed') {
       this.completedAt = this.completedAt || new Date()
       this.progress = 100
     } else {

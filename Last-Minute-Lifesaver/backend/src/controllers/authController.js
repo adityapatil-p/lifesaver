@@ -51,7 +51,6 @@ export const registerUser = async (req, res) => {
       res.status(400).json({ success: false, error: 'Invalid user data provided' })
     }
   } catch (error) {
-    console.error('Register Error:', error)
     res.status(500).json({ success: false, error: error.message })
   }
 }
@@ -82,7 +81,6 @@ export const loginUser = async (req, res) => {
       res.status(401).json({ success: false, error: 'Invalid email or password' })
     }
   } catch (error) {
-    console.error('Login Error:', error)
     res.status(500).json({ success: false, error: error.message })
   }
 }
@@ -109,7 +107,6 @@ export const getUserProfile = async (req, res) => {
       res.status(404).json({ success: false, error: 'User not found' })
     }
   } catch (error) {
-    console.error('Get Profile Error:', error)
     res.status(500).json({ success: false, error: error.message })
   }
 }
@@ -154,7 +151,6 @@ export const updateUserProfile = async (req, res) => {
       res.status(404).json({ success: false, error: 'User not found' })
     }
   } catch (error) {
-    console.error('Update Profile Error:', error)
     res.status(500).json({ success: false, error: error.message })
   }
 }

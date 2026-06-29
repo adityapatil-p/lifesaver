@@ -5,19 +5,20 @@ import {
 } from '../services/geminiService.js'
 import Task from '../models/Task.js'
 
+const taskOwnerQuery = (userId, extra = {}) => ({
+  ...extra,
+  $or: [{ user: userId }, { userId }],
+})
+
 // @desc    Generate optimized daily schedule & risks
 // @route   POST /api/ai/schedule
 // @access  Private
 export const getSchedule = async (req, res) => {
   try {
-    console.log('Schedule Controller Started')
-    const tasks = await Task.find({ userId: req.user._id })
-    console.log('Tasks:', tasks.length)
+    const tasks = await Task.find(taskOwnerQuery(req.user._id))
     const scheduleData = await generateScheduleAI(tasks)
-    console.log('Schedule Generated')
     res.json({ success: true, ...scheduleData })
   } catch (error) {
-    console.error('AI Schedule Error:', error)
     res.status(500).json({ success: false, error: error.message })
   }
 }
@@ -27,7 +28,7 @@ export const getSchedule = async (req, res) => {
 // @access  Private
 export const prioritizeTasks = async (req, res) => {
   try {
-    const tasks = await Task.find({ userId: req.user._id, status: { $ne: 'done' } })
+    const tasks = await Task.find(taskOwnerQuery(req.user._id, { status: { $ne: 'completed' } }))
 
     if (tasks.length === 0) {
       return res.json({ success: true, message: 'No active tasks to prioritize', taskUpdates: [] })
@@ -39,7 +40,7 @@ export const prioritizeTasks = async (req, res) => {
     const updates = []
     for (const item of aiPriorities) {
       const updateResult = await Task.updateOne(
-        { _id: item.id, userId: req.user._id },
+        taskOwnerQuery(req.user._id, { _id: item.id }),
         { $set: { priority: item.priority } }
       )
       updates.push({
@@ -52,7 +53,6 @@ export const prioritizeTasks = async (req, res) => {
 
     res.json({ success: true, message: 'Tasks prioritized successfully', taskUpdates: updates })
   } catch (error) {
-    console.error('AI Prioritize Error:', error)
     res.status(500).json({ success: false, error: error.message })
   }
 }
@@ -62,18 +62,14 @@ export const prioritizeTasks = async (req, res) => {
 // @access  Private
 export const triggerRescueMode = async (req, res) => {
   try {
-    const tasks = await Task.find({ userId: req.user._id })
+    const tasks = await Task.find(taskOwnerQuery(req.user._id))
     const rescueData = await runRescueModeAI(tasks)
-
-    // Log tasks that were recommended for deferral
-    console.log(`Rescue mode run. User ${req.user._id}. Deferred:`, rescueData.deferredTasks)
 
     // Option: Automatically defer tasks in the database to 'low' priority, or let the user decide.
     // The prompt says "deferredTasks: array of strings of task titles". We'll return it so the frontend can display it beautifully.
 
     res.json({ success: true, ...rescueData })
   } catch (error) {
-    console.error('AI Rescue Mode Error:', error)
     res.status(500).json({ success: false, error: error.message })
   }
 }

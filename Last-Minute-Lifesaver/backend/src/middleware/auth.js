@@ -14,11 +14,6 @@ export const protect = async (req, res, next) => {
       // Get token from header
       token = req.headers.authorization.split(' ')[1]
 
-      console.log("Authorization Header:", req.headers.authorization);
-      console.log("Extracted Token:", token);
-      console.log("Token Length:", token.length);
-      console.log("Token Parts:", token.split(".").length);
-
       // Verify token
       const jwtSecret = process.env.JWT_SECRET
       if (!jwtSecret) {
@@ -36,14 +31,9 @@ export const protect = async (req, res, next) => {
 
       next()
     } catch (error) {
-      console.error("========== JWT ERROR ==========");
-      console.error(error);
-      console.error("Message:", error.message);
-      console.error("Name:", error.name);
-
       return res.status(401).json({
         success: false,
-        error: error.message,
+        error: 'Your session has expired. Please sign in again.',
       });
     }
   }

@@ -23,10 +23,6 @@ const getModel = () => {
     return null;
   }
 
-  console.log("API Key Length:", apiKey.length);
-  console.log("Creating Gemini Client...");
-  console.log("Model: gemini-2.5-flash");
-
   const genAI = new GoogleGenerativeAI(apiKey);
 
   return genAI.getGenerativeModel({
@@ -36,9 +32,12 @@ const getModel = () => {
     },
   });
 };
+
+const isCompleted = (task) => task.status === 'completed' || task.status === 'done'
+
 // Graceful fallback for schedule generation when no API Key is available
 const generateMockSchedule = (tasks) => {
-  const activeTasks = tasks.filter((t) => t.status !== 'done')
+  const activeTasks = tasks.filter((t) => !isCompleted(t))
   
   const criticalTasks = activeTasks.filter((t) => t.priority === 'critical')
   const highTasks = activeTasks.filter((t) => t.priority === 'high')
@@ -150,15 +149,13 @@ export const generateScheduleAI = async (tasks, currentDateTime = new Date()) =>
 
   try {
 const model = getModel();
-console.log("1. Model Created");
 
 if (!model) {
-  console.warn("GEMINI_API_KEY is not defined.");
   return generateMockSchedule(tasks);
 }
 
     const activeTasks = tasks
-  .filter((t) => t.status !== "done")
+  .filter((t) => !isCompleted(t))
   .sort((a, b) => {
     const priorityOrder = {
       critical: 4,
@@ -256,7 +253,6 @@ const cleanText = responseText
 
 return JSON.parse(cleanText);
   } catch (error) {
-    console.error("Gemini API Error (generateScheduleAI):", error);
     return generateMockSchedule(tasks);
   }
 }
@@ -267,8 +263,6 @@ export const prioritizeTasksAI = async (tasks) => {
   const model = getModel();
 
   if (!model) {
-    console.warn("GEMINI_API_KEY is not defined. Using fallback prioritization.");
-
     return tasks.map((t) => ({
       id: t._id || t.id,
       title: t.title,
@@ -338,7 +332,6 @@ const responseText = result.response.text();
 
 return JSON.parse(cleanText);
   } catch (error) {
-    console.error('Gemini API Error (prioritizeTasksAI):', error)
     return tasks.map((t) => ({
       id: t._id || t.id,
       priority: t.priority,
@@ -352,9 +345,7 @@ export const runRescueModeAI = async (tasks) => {
   const model = getModel();
 
   if (!model) {
-    console.warn("GEMINI_API_KEY is not defined. Simulating Rescue Mode.");
-
-    const activeTasks = tasks.filter((t) => t.status !== "done");
+    const activeTasks = tasks.filter((t) => !isCompleted(t));
     const criticalTasks = activeTasks.filter(
       (t) => t.priority === "critical" || t.priority === "high"
     );
@@ -414,7 +405,7 @@ export const runRescueModeAI = async (tasks) => {
 
   try {
     const activeTasks = tasks
-  .filter((t) => t.status !== "done")
+  .filter((t) => !isCompleted(t))
   .sort((a, b) => {
     const priorityOrder = {
       critical: 4,
@@ -503,7 +494,6 @@ Return ONLY valid JSON.
 
 return JSON.parse(cleanText);
   } catch (error) {
-    console.error('Gemini API Error (runRescueModeAI):', error)
     // Fall back to local solver
     return {
   schedule: [

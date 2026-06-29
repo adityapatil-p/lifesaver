@@ -1,17 +1,55 @@
 import Task from '../models/Task.js'
 import { prioritizeTasksAI } from '../services/geminiService.js'
 
+const taskOwnerQuery = (userId, extra = {}) => ({
+  ...extra,
+  $or: [{ user: userId }, { userId }],
+})
+
+const normalizeStatus = (status) => (status === 'done' ? 'completed' : status)
+
+const allowedPriorities = ['low', 'medium', 'high', 'critical']
+const allowedStatuses = ['todo', 'in-progress', 'completed']
+
+const sendTaskError = (res, error, fallbackStatus = 400) => {
+  if (error.name === 'CastError') {
+    return res.status(404).json({ success: false, error: 'Task not found' })
+  }
+
+  if (error.name === 'ValidationError') {
+    return res.status(400).json({ success: false, error: error.message })
+  }
+
+  return res.status(fallbackStatus).json({ success: false, error: error.message })
+}
+
 // @desc    Get user tasks
 // @route   GET /api/tasks
 // @access  Private
 export const getTasks = async (req, res) => {
   try {
     // Sort primarily by deadline ascending (closest deadlines first), then priority
-    const tasks = await Task.find({ userId: req.user._id }).sort({ order: 1, deadline: 1 })
+    const tasks = await Task.find(taskOwnerQuery(req.user._id)).sort({ order: 1, deadline: 1 })
     res.json({ success: true, tasks })
   } catch (error) {
-    console.error('Get Tasks Error:', error)
     res.status(500).json({ success: false, error: error.message })
+  }
+}
+
+// @desc    Get one user task
+// @route   GET /api/tasks/:id
+// @access  Private
+export const getTaskById = async (req, res) => {
+  try {
+    const task = await Task.findOne(taskOwnerQuery(req.user._id, { _id: req.params.id }))
+
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' })
+    }
+
+    res.json({ success: true, task })
+  } catch (error) {
+    sendTaskError(res, error)
   }
 }
 
@@ -20,9 +58,6 @@ export const getTasks = async (req, res) => {
 // @access  Private
 
 export const createTask = async (req, res) => {
-
-  console.log("REQ BODY:", req.body);
-
   const {
     title,
     description,
@@ -35,11 +70,25 @@ export const createTask = async (req, res) => {
   } = req.body;
 
   try {
+    if (!title?.trim()) {
+      return res.status(400).json({ success: false, error: 'Task title is required' })
+    }
+
+    if (!deadline) {
+      return res.status(400).json({ success: false, error: 'Task deadline is required' })
+    }
+
+    if (priority && !allowedPriorities.includes(priority)) {
+      return res.status(400).json({ success: false, error: 'Invalid task priority' })
+    }
+
     const task = await Task.create({
+      user: req.user._id,
       userId: req.user._id,
-      title,
+      title: title.trim(),
       description,
       priority: priority || 'medium',
+      status: normalizeStatus(req.body.status) || 'todo',
       deadline,
       category: category || 'General',
       tags: tags || [],
@@ -51,18 +100,17 @@ export const createTask = async (req, res) => {
     if (req.user.preferences?.aiSettings?.smartPrioritize) {
       try {
         // Run AI prioritization in the background (or block, let's keep it async so creation is fast)
-        const allUserTasks = await Task.find({ userId: req.user._id, status: { $ne: 'done' } })
+        const allUserTasks = await Task.find(taskOwnerQuery(req.user._id, { status: { $ne: 'completed' } }))
         if (allUserTasks.length > 0) {
           const aiPriorities = await prioritizeTasksAI(allUserTasks)
           for (const item of aiPriorities) {
             await Task.updateOne(
-              { _id: item.id, userId: req.user._id },
+              taskOwnerQuery(req.user._id, { _id: item.id }),
               { $set: { priority: item.priority } }
             )
           }
         }
       } catch (aiErr) {
-        console.error('Failed to auto-prioritize task via AI:', aiErr.message)
       }
     }
 
@@ -71,8 +119,7 @@ export const createTask = async (req, res) => {
 
     res.status(201).json({ success: true, task: updatedTask })
   } catch (error) {
-    console.error('Create Task Error:', error)
-    res.status(400).json({ success: false, error: error.message })
+    sendTaskError(res, error)
   }
 }
 
@@ -83,10 +130,18 @@ export const updateTask = async (req, res) => {
   const { id } = req.params
 
   try {
-    const task = await Task.findOne({ _id: id, userId: req.user._id })
+    const task = await Task.findOne(taskOwnerQuery(req.user._id, { _id: id }))
 
     if (!task) {
-      return res.status(404).json({ success: false, error: 'Task not found or unauthorized' })
+      return res.status(404).json({ success: false, error: 'Task not found' })
+    }
+
+    if (req.body.priority && !allowedPriorities.includes(req.body.priority)) {
+      return res.status(400).json({ success: false, error: 'Invalid task priority' })
+    }
+
+    if (req.body.status && !allowedStatuses.includes(normalizeStatus(req.body.status))) {
+      return res.status(400).json({ success: false, error: 'Invalid task status' })
     }
 
     // Update fields
@@ -104,15 +159,14 @@ export const updateTask = async (req, res) => {
 
     fieldsToUpdate.forEach((field) => {
       if (req.body[field] !== undefined) {
-        task[field] = req.body[field]
+        task[field] = field === 'status' ? normalizeStatus(req.body[field]) : req.body[field]
       }
     })
 
     const updatedTask = await task.save()
     res.json({ success: true, task: updatedTask })
   } catch (error) {
-    console.error('Update Task Error:', error)
-    res.status(400).json({ success: false, error: error.message })
+    sendTaskError(res, error)
   }
 }
 
@@ -123,16 +177,89 @@ export const deleteTask = async (req, res) => {
   const { id } = req.params
 
   try {
-    const result = await Task.deleteOne({ _id: id, userId: req.user._id })
+    const result = await Task.deleteOne(taskOwnerQuery(req.user._id, { _id: id }))
 
     if (result.deletedCount === 0) {
-      return res.status(404).json({ success: false, error: 'Task not found or unauthorized' })
+      return res.status(404).json({ success: false, error: 'Task not found' })
     }
 
     res.json({ success: true, message: 'Task deleted successfully' })
   } catch (error) {
-    console.error('Delete Task Error:', error)
     res.status(500).json({ success: false, error: error.message })
+  }
+}
+
+// @desc    Mark a task complete
+// @route   PATCH /api/tasks/:id/complete
+// @access  Private
+export const completeTask = async (req, res) => {
+  try {
+    const task = await Task.findOne(taskOwnerQuery(req.user._id, { _id: req.params.id }))
+
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' })
+    }
+
+    task.status = 'completed'
+    task.completedAt = task.completedAt || new Date()
+    task.progress = 100
+
+    const updatedTask = await task.save()
+    res.json({ success: true, task: updatedTask })
+  } catch (error) {
+    sendTaskError(res, error)
+  }
+}
+
+// @desc    Update a task status
+// @route   PATCH /api/tasks/:id/status
+// @access  Private
+export const updateTaskStatus = async (req, res) => {
+  const status = normalizeStatus(req.body.status)
+
+  if (!allowedStatuses.includes(status)) {
+    return res.status(400).json({ success: false, error: 'Invalid task status' })
+  }
+
+  try {
+    const task = await Task.findOne(taskOwnerQuery(req.user._id, { _id: req.params.id }))
+
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' })
+    }
+
+    task.status = status
+    const updatedTask = await task.save()
+
+    res.json({ success: true, task: updatedTask })
+  } catch (error) {
+    sendTaskError(res, error)
+  }
+}
+
+// @desc    Update a task priority
+// @route   PATCH /api/tasks/:id/priority
+// @access  Private
+export const updateTaskPriority = async (req, res) => {
+  const { priority } = req.body
+
+  if (!allowedPriorities.includes(priority)) {
+    return res.status(400).json({ success: false, error: 'Invalid task priority' })
+  }
+
+  try {
+    const task = await Task.findOne(taskOwnerQuery(req.user._id, { _id: req.params.id }))
+
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' })
+    }
+
+    task.priority = priority
+    const updatedTask = await task.save()
+
+    res.json({ success: true, task: updatedTask })
+  } catch (error) {
+    sendTaskError(res, error)
   }
 }
 
@@ -154,10 +281,7 @@ export const reorderTasks = async (req, res) => {
     for (let i = 0; i < taskIds.length; i++) {
 
       await Task.updateOne(
-        {
-          _id: taskIds[i],
-          userId: req.user._id,
-        },
+        taskOwnerQuery(req.user._id, { _id: taskIds[i] }),
         {
           order: i,
         }
@@ -170,9 +294,6 @@ export const reorderTasks = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error(error);
-
     res.status(500).json({
       success: false,
       error: error.message,
